@@ -1,0 +1,53 @@
+# Environment and sensitive files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+details.env
+*.env
+.env.*
+
+# API Keys and secrets
+secrets.json
+config.json
+credentials.json
+*.key
+*.pem
+*.p12
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+email_flags.db
+
+# Logs and temporary files
+*.tmp
+*.temp
+.cache
+*.log
+
+# Node modules
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 
