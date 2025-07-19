@@ -18,6 +18,9 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, 'dist')));
+
 // Initialize AI clients
 const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -444,7 +447,17 @@ app.delete('/api/files/:fileName(*)', (req, res) => {
     }
 });
 
+// Serve React app for non-API routes
+app.get('*', (req, res) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(__dirname, 'dist/index.html'));
+});
+
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📁 Virtual files initialized: ${virtualFileSystem.size} files`);
+    console.log(`🌐 Frontend served from /dist`);
 }); 

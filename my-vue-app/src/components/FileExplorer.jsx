@@ -1,220 +1,135 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { Folder, File, Plus, Search, ChevronRight, ChevronDown, RefreshCw, Eye, Trash2, Code, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Folder, File, Plus, Search, ChevronRight, ChevronDown, Eye, Trash2, X } from 'lucide-react';
 
-const FileExplorer = forwardRef((props, ref) => {
-  const [expandedFolders, setExpandedFolders] = useState(new Set(['src']));
+const FileExplorer = () => {
+  const [files, setFiles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [fileStructure, setFileStructure] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // Function to build file tree from a flat list
-  const buildFileTree = (files) => {
-    const tree = [];
-    const fileMap = new Map();
-
-    files.forEach(file => {
-      const parts = file.name.split('/');
-      let currentPath = '';
-      
-      parts.forEach((part, index) => {
-        const isLast = index === parts.length - 1;
-        const path = currentPath ? `${currentPath}/${part}` : part;
-        
-        if (!fileMap.has(path)) {
-          const node = {
-            id: path,
-            name: part,
-            type: isLast ? 'file' : 'folder',
-            children: [],
-            fileData: isLast ? file : null
-          };
-          
-          if (currentPath && fileMap.has(currentPath)) {
-            fileMap.get(currentPath).children.push(node);
-          } else {
-            tree.push(node);
-          }
-          
-          fileMap.set(path, node);
-        }
-        
-        currentPath = path;
-      });
-    });
-
-    return tree;
-  };
-
-  // Function to get files from the virtual file system
+  // Fetch files from backend
   const fetchFiles = async () => {
-    setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/files');
+      setIsLoading(true);
+      const response = await fetch('/api/files');
       if (response.ok) {
-        const files = await response.json();
-        const tree = buildFileTree(files);
-        setFileStructure(tree);
+        const data = await response.json();
+        setFiles(data.files || []);
       } else {
         console.error('Failed to fetch files');
-        setFileStructure([]);
       }
     } catch (error) {
       console.error('Error fetching files:', error);
-      setFileStructure([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Expose fetchFiles function to parent component
-  useImperativeHandle(ref, () => ({
-    fetchFiles
-  }));
-
+  // Load files on component mount
   useEffect(() => {
     fetchFiles();
+    
+    // Refresh files every 3 seconds to show new files created by AI
+    const interval = setInterval(fetchFiles, 3000);
+    return () => clearInterval(interval);
   }, []);
 
-  const toggleFolder = (folderId) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpandedFolders(newExpanded);
-  };
-
-  const handleFileClick = (fileData) => {
-    setSelectedFile(fileData);
-    setShowPreview(true);
-  };
-
-  const handleDeleteFile = async (fileName) => {
-    if (window.confirm(`Are you sure you want to delete ${fileName}?`)) {
-      try {
-        const response = await fetch(`http://localhost:3001/api/files/${encodeURIComponent(fileName)}`, {
-          method: 'DELETE'
+  // Preview file content
+  const previewFile = async (fileName) => {
+    try {
+      console.log(`🔍 Previewing file: ${fileName}`);
+      const response = await fetch(`/api/files/${encodeURIComponent(fileName)}/content`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedFile({
+          name: data.name,
+          content: data.content,
+          type: data.type,
+          path: data.path
         });
-        
-        if (response.ok) {
-          fetchFiles(); // Refresh file list
-          if (selectedFile && selectedFile.name === fileName) {
-            setSelectedFile(null);
-            setShowPreview(false);
-          }
-        } else {
-          console.error('Failed to delete file');
-        }
-      } catch (error) {
-        console.error('Error deleting file:', error);
+        setShowPreview(true);
+      } else {
+        const errorData = await response.json();
+        console.error('Preview error:', errorData);
+        alert(`Could not load file content: ${errorData.error}`);
       }
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      alert(`Could not load file content: ${error.message}`);
     }
   };
 
-  const getFileIcon = (fileName) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
+  // Delete file
+  const deleteFile = async (fileName) => {
+    if (!confirm(`Are you sure you want to delete ${fileName}?`)) return;
+    
+    try {
+      const response = await fetch('/api/files/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileName }),
+      });
+
+      if (response.ok) {
+        await fetchFiles(); // Refresh file list
+        // Close preview if the deleted file was being previewed
+        if (selectedFile && selectedFile.name === fileName) {
+          setShowPreview(false);
+          setSelectedFile(null);
+        }
+        alert(`File ${fileName} deleted successfully`);
+      } else {
+        const data = await response.json();
+        alert(`Error deleting file: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      alert(`Error deleting file: ${error.message}`);
+    }
+  };
+
+  // Get file extension for syntax highlighting
+  const getFileExtension = (fileName) => {
+    return fileName.split('.').pop()?.toLowerCase() || '';
+  };
+
+  // Get file type icon color
+  const getFileIconColor = (fileName) => {
+    const ext = getFileExtension(fileName);
     switch (ext) {
       case 'js':
       case 'jsx':
+        return 'text-yellow-400';
       case 'ts':
       case 'tsx':
-        return <Code className="w-4 h-4 mr-2 text-yellow-400" />;
-      case 'json':
-        return <FileText className="w-4 h-4 mr-2 text-green-400" />;
-      case 'css':
-      case 'scss':
-        return <FileText className="w-4 h-4 mr-2 text-blue-400" />;
+        return 'text-blue-400';
       case 'html':
-        return <FileText className="w-4 h-4 mr-2 text-orange-400" />;
+        return 'text-orange-400';
+      case 'css':
+        return 'text-green-400';
+      case 'json':
+        return 'text-purple-400';
       case 'md':
-        return <FileText className="w-4 h-4 mr-2 text-purple-400" />;
+        return 'text-gray-300';
       default:
-        return <File className="w-4 h-4 mr-2 text-gray-400" />;
+        return 'text-gray-400';
     }
   };
 
-  const renderFileNode = (node, depth = 0) => {
-    const isExpanded = expandedFolders.has(node.id);
-    const paddingLeft = depth * 16 + 8;
-
-    return (
-      <div key={node.id}>
-        <div
-          className="flex items-center py-1 px-2 hover:bg-gray-700 cursor-pointer group"
-          style={{ paddingLeft }}
-          onClick={() => {
-            if (node.type === 'folder') {
-              toggleFolder(node.id);
-            } else if (node.fileData) {
-              handleFileClick(node.fileData);
-            }
-          }}
-        >
-          {node.type === 'folder' && (
-            <div className="w-4 h-4 mr-1">
-              {isExpanded ? (
-                <ChevronDown className="w-3 h-3 text-gray-400" />
-              ) : (
-                <ChevronRight className="w-3 h-3 text-gray-400" />
-              )}
-            </div>
-          )}
-          {node.type === 'folder' ? (
-            <Folder className="w-4 h-4 mr-2 text-blue-400" />
-          ) : (
-            getFileIcon(node.name)
-          )}
-          <span className="text-sm truncate flex-1">{node.name}</span>
-          
-          {node.type === 'file' && node.fileData && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleFileClick(node.fileData);
-                }}
-                className="p-1 hover:bg-gray-600 rounded"
-                title="Preview file"
-              >
-                <Eye className="w-3 h-3 text-blue-400" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteFile(node.fileData.name);
-                }}
-                className="p-1 hover:bg-gray-600 rounded"
-                title="Delete file"
-              >
-                <Trash2 className="w-3 h-3 text-red-400" />
-              </button>
-            </div>
-          )}
-        </div>
-        {node.type === 'folder' && isExpanded && node.children && (
-          <div>
-            {node.children.map(child => renderFileNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const filteredFiles = fileStructure.filter(node => 
-    node.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (node.children && node.children.some(child => 
-      child.name.toLowerCase().includes(searchTerm.toLowerCase())
-    ))
+  // Filter files based on search term
+  const filteredFiles = files.filter(file =>
+    file.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="p-3 border-b border-gray-700">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="relative flex-1">
+    <>
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="p-3 border-b border-gray-700">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
@@ -224,71 +139,131 @@ const FileExplorer = forwardRef((props, ref) => {
               className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <button
-            onClick={fetchFiles}
-            disabled={isLoading}
-            className="p-2 hover:bg-gray-700 rounded transition-colors"
-            title="Refresh files"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="p-2">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-4">
-              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              <span className="text-sm text-gray-400">Loading files...</span>
-            </div>
-          ) : filteredFiles.length > 0 ? (
-            filteredFiles.map(node => renderFileNode(node))
-          ) : (
-            <div className="text-center py-4 text-gray-400 text-sm">
-              {searchTerm ? 'No files found' : 'No files created yet. Ask the AI to create some files!'}
-            </div>
-          )}
+        
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="p-2">
+            {isLoading ? (
+              <div className="text-center text-gray-400 py-4">
+                Loading files...
+              </div>
+            ) : filteredFiles.length === 0 ? (
+              <div className="text-center text-gray-400 py-4">
+                {searchTerm ? 'No files match your search' : 'No files available'}
+              </div>
+            ) : (
+              filteredFiles.map((file) => (
+                <div
+                  key={file.name}
+                  className="flex items-center py-2 px-2 hover:bg-gray-700 cursor-pointer group rounded-md"
+                >
+                  <File className={`w-4 h-4 mr-2 ${getFileIconColor(file.name)}`} />
+                  <span className="text-sm truncate flex-1">{file.name}</span>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        previewFile(file.name);
+                      }}
+                      className="p-1 hover:bg-gray-600 rounded"
+                      title="Preview file"
+                    >
+                      <Eye className="w-3 h-3 text-blue-400" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteFile(file.name);
+                      }}
+                      className="p-1 hover:bg-gray-600 rounded"
+                      title="Delete file"
+                    >
+                      <Trash2 className="w-3 h-3 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="p-3 border-t border-gray-700">
+          <div className="text-xs text-gray-400 mb-2">
+            {filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''}
+          </div>
+          <button 
+            onClick={fetchFiles}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Refresh Files
+          </button>
         </div>
       </div>
 
       {/* File Preview Modal */}
       {showPreview && selectedFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg w-3/4 h-3/4 flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg w-full max-w-4xl h-5/6 flex flex-col shadow-2xl">
+            {/* Modal Header */}
             <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{selectedFile.name}</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">
-                  {selectedFile.size} characters • {new Date(selectedFile.createdAt).toLocaleString()}
-                </span>
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="p-1 hover:bg-gray-700 rounded"
-                >
-                  <span className="text-xl">&times;</span>
-                </button>
+              <div className="flex items-center gap-3">
+                <File className={`w-5 h-5 ${getFileIconColor(selectedFile.name)}`} />
+                <div>
+                  <h3 className="text-lg font-semibold text-white">{selectedFile.name}</h3>
+                  <p className="text-sm text-gray-400">
+                    {getFileExtension(selectedFile.name).toUpperCase()} File • {selectedFile.content.length} characters
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  setSelectedFile(null);
+                }}
+                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full overflow-y-auto p-4">
+                <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono bg-gray-900 p-4 rounded-lg border border-gray-600 leading-relaxed">
+                  {selectedFile.content}
+                </pre>
               </div>
             </div>
-            <div className="flex-1 overflow-auto p-4">
-              <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
-                {selectedFile.content}
-              </pre>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-700 flex items-center justify-between">
+              <div className="text-sm text-gray-400">
+                Path: {selectedFile.path}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedFile.content);
+                    alert('Content copied to clipboard!');
+                  }}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
+                >
+                  Copy Content
+                </button>
+                <button
+                  onClick={() => deleteFile(selectedFile.name)}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm font-medium transition-colors"
+                >
+                  Delete File
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
-      <div className="p-3 border-t border-gray-700">
-        <button className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors">
-          <Plus className="w-4 h-4" />
-          Ask AI to Create Files
-        </button>
-      </div>
-    </div>
+    </>
   );
-});
-
-FileExplorer.displayName = 'FileExplorer';
+};
 
 export default FileExplorer; 

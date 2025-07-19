@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Edit2, Copy, RotateCcw, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Send, Bot, User, Edit2, Copy, RotateCcw } from 'lucide-react';
 
-const ChatInterface = ({ onFilesUpdated }) => {
+const ChatInterface = () => {
   const [messages, setMessages] = useState([
     {
       id: '1',
-      content: 'Hello! I\'m your AI assistant. I can help you create applications, write code, or assist with any development tasks. What would you like to create today?',
+      content: 'Hello! I\'m your AI assistant. What would you like to create today?',
       sender: 'ai',
       timestamp: new Date(),
       aiModel: 'gpt4'
@@ -14,46 +14,9 @@ const ChatInterface = ({ onFilesUpdated }) => {
   const [inputValue, setInputValue] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt4');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState(Date.now().toString());
-  const [availableModels, setAvailableModels] = useState({ gpt4: true, gemini: true });
-  const messagesEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Check available models on component mount
-  useEffect(() => {
-    const checkModels = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/health');
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableModels(data.models);
-          
-          // If current model is not available, switch to available one
-          if (!data.models[selectedModel]) {
-            if (data.models.gpt4) {
-              setSelectedModel('gpt4');
-            } else if (data.models.gemini) {
-              setSelectedModel('gemini');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking available models:', error);
-      }
-    };
-    
-    checkModels();
-  }, []);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim()) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -67,96 +30,40 @@ const ChatInterface = ({ onFilesUpdated }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/chat', {
+      // Make API call to backend
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message: inputValue,
-          conversationId: conversationId,
           model: selectedModel
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get response from AI');
-      }
-
       const data = await response.json();
       
-      // Add thinking steps as separate messages
-      const thinkingSteps = data.steps.filter(step => step.type === 'thinking');
-      const actionSteps = data.steps.filter(step => step.type === 'action');
-      const observeSteps = data.steps.filter(step => step.type === 'observe');
-
-      // Add thinking messages
-      thinkingSteps.forEach((step, index) => {
-        const thinkingMessage = {
-          id: `thinking-${Date.now()}-${index}`,
-          content: `🤔 ${step.content}`,
-          sender: 'ai',
-          timestamp: new Date(),
-          aiModel: selectedModel,
-          type: 'thinking'
-        };
-        setMessages(prev => [...prev, thinkingMessage]);
-      });
-
-      // Add action messages
-      actionSteps.forEach((step, index) => {
-        const actionMessage = {
-          id: `action-${Date.now()}-${index}`,
-          content: `⚒️ ${step.content}`,
-          sender: 'ai',
-          timestamp: new Date(),
-          aiModel: selectedModel,
-          type: 'action'
-        };
-        setMessages(prev => [...prev, actionMessage]);
-      });
-
-      // Add observe messages
-      observeSteps.forEach((step, index) => {
-        const observeMessage = {
-          id: `observe-${Date.now()}-${index}`,
-          content: `📊 ${step.content}`,
-          sender: 'ai',
-          timestamp: new Date(),
-          aiModel: selectedModel,
-          type: 'observe'
-        };
-        setMessages(prev => [...prev, observeMessage]);
-      });
-
-      // Add final output message
-      if (data.finalOutput) {
+      if (response.ok) {
         const aiResponse = {
           id: (Date.now() + 1).toString(),
-          content: data.finalOutput,
+          content: data.response,
           sender: 'ai',
           timestamp: new Date(),
           aiModel: selectedModel
         };
         setMessages(prev => [...prev, aiResponse]);
+      } else {
+        throw new Error(data.error || 'Failed to get response');
       }
-
-      // Check if any files were created and refresh file explorer
-      const fileCreationSteps = actionSteps.filter(step => step.tool === 'createFile');
-      if (fileCreationSteps.length > 0 && onFilesUpdated) {
-        onFilesUpdated();
-      }
-
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error sending message:', error);
       const errorMessage = {
         id: (Date.now() + 1).toString(),
-        content: `Sorry, I encountered an error: ${error.message}`,
+        content: 'Sorry, I encountered an error. Please try again.',
         sender: 'ai',
         timestamp: new Date(),
-        aiModel: selectedModel,
-        type: 'error'
+        aiModel: selectedModel
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -169,22 +76,6 @@ const ChatInterface = ({ onFilesUpdated }) => {
       e.preventDefault();
       handleSendMessage();
     }
-  };
-
-  const getMessageStyle = (message) => {
-    if (message.type === 'thinking') {
-      return 'bg-yellow-600/20 text-yellow-200 border border-yellow-600/30';
-    }
-    if (message.type === 'action') {
-      return 'bg-blue-600/20 text-blue-200 border border-blue-600/30';
-    }
-    if (message.type === 'observe') {
-      return 'bg-green-600/20 text-green-200 border border-green-600/30';
-    }
-    if (message.type === 'error') {
-      return 'bg-red-600/20 text-red-200 border border-red-600/30';
-    }
-    return message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-100';
   };
 
   return (
@@ -204,7 +95,11 @@ const ChatInterface = ({ onFilesUpdated }) => {
             
             <div className={`max-w-2xl ${message.sender === 'user' ? 'order-1' : ''}`}>
               <div
-                className={`p-3 rounded-lg ${getMessageStyle(message)}`}
+                className={`p-3 rounded-lg ${
+                  message.sender === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-100'
+                }`}
               >
                 <p className="text-sm leading-relaxed">{message.content}</p>
               </div>
@@ -212,15 +107,8 @@ const ChatInterface = ({ onFilesUpdated }) => {
               <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                 <span>{message.timestamp.toLocaleTimeString()}</span>
                 {message.aiModel && (
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    message.aiModel === 'gpt4' ? 'bg-blue-600' : 'bg-purple-600'
-                  }`}>
+                  <span className="px-2 py-1 bg-gray-600 rounded text-xs">
                     {message.aiModel.toUpperCase()}
-                  </span>
-                )}
-                {message.type && (
-                  <span className="px-2 py-1 bg-gray-600 rounded text-xs capitalize">
-                    {message.type}
                   </span>
                 )}
                 <button className="hover:text-gray-300">
@@ -245,7 +133,7 @@ const ChatInterface = ({ onFilesUpdated }) => {
         {isLoading && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 text-white animate-spin" />
+              <Bot className="w-4 h-4 text-white" />
             </div>
             <div className="bg-gray-700 p-3 rounded-lg">
               <div className="flex space-x-1">
@@ -256,7 +144,6 @@ const ChatInterface = ({ onFilesUpdated }) => {
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Area */}
@@ -266,40 +153,25 @@ const ChatInterface = ({ onFilesUpdated }) => {
           <div className="flex gap-2">
             <button
               onClick={() => setSelectedModel('gpt4')}
-              disabled={!availableModels.gpt4}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                 selectedModel === 'gpt4'
                   ? 'bg-blue-600 text-white'
-                  : availableModels.gpt4
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
-              title={!availableModels.gpt4 ? 'OpenAI API key not configured' : ''}
             >
               GPT-4
             </button>
             <button
               onClick={() => setSelectedModel('gemini')}
-              disabled={!availableModels.gemini}
               className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                 selectedModel === 'gemini'
                   ? 'bg-purple-600 text-white'
-                  : availableModels.gemini
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
-              title={!availableModels.gemini ? 'Gemini API key not configured' : ''}
             >
               Gemini
             </button>
           </div>
-          {(!availableModels.gpt4 || !availableModels.gemini) && (
-            <span className="text-xs text-yellow-400">
-              {!availableModels.gpt4 && !availableModels.gemini 
-                ? 'No AI models configured' 
-                : 'Some models unavailable'}
-            </span>
-          )}
         </div>
         
         <div className="flex gap-3">
@@ -308,10 +180,9 @@ const ChatInterface = ({ onFilesUpdated }) => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Describe the app you want to create, or ask for help with development tasks..."
+              placeholder="What would you like to create? Describe your project or ask for help..."
               className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               rows={3}
-              disabled={isLoading}
             />
           </div>
           <button
@@ -319,11 +190,7 @@ const ChatInterface = ({ onFilesUpdated }) => {
             disabled={!inputValue.trim() || isLoading}
             className="px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center"
           >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
+            <Send className="w-5 h-5" />
           </button>
         </div>
       </div>

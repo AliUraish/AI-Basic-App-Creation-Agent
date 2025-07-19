@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { FileText, MessageSquare, Settings, Menu, X } from 'lucide-react';
 import FileExplorer from './components/FileExplorer';
 import ChatInterface from './components/ChatInterface';
@@ -7,14 +7,6 @@ import ChatHistory from './components/ChatHistory';
 function App() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
-  const fileExplorerRef = useRef();
-
-  const handleFilesUpdated = () => {
-    // Trigger file explorer refresh
-    if (fileExplorerRef.current && fileExplorerRef.current.fetchFiles) {
-      fileExplorerRef.current.fetchFiles();
-    }
-  };
 
   return (
     <div className="h-screen bg-gray-900 text-white flex overflow-hidden">
@@ -24,7 +16,7 @@ function App() {
           <div className="p-4 border-b border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-400" />
-              <span className="font-semibold">Virtual Files</span>
+              <span className="font-semibold">Files</span>
             </div>
             <button
               onClick={() => setLeftSidebarOpen(false)}
@@ -33,7 +25,7 @@ function App() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <FileExplorer ref={fileExplorerRef} />
+          <FileExplorer />
         </div>
       </div>
 
@@ -66,7 +58,7 @@ function App() {
         </div>
 
         {/* Chat Interface */}
-        <ChatInterface onFilesUpdated={handleFilesUpdated} />
+        <ChatInterface />
       </div>
 
       {/* Right Sidebar - Chat History */}
