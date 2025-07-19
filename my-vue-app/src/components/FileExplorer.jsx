@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Folder, File, Plus, Search, ChevronRight, ChevronDown, Eye, Trash2, X } from 'lucide-react';
 
-const FileExplorer = () => {
+const FileExplorer = ({ onFileSelect }) => {
   const [files, setFiles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -12,12 +12,14 @@ const FileExplorer = () => {
   const fetchFiles = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Fetching files from backend...');
       const response = await fetch('/api/files');
       if (response.ok) {
         const data = await response.json();
+        console.log('📁 Files received:', data.files?.length || 0, 'files');
         setFiles(data.files || []);
       } else {
-        console.error('Failed to fetch files');
+        console.error('Failed to fetch files:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Error fetching files:', error);
@@ -43,13 +45,19 @@ const FileExplorer = () => {
       
       if (response.ok) {
         const data = await response.json();
-        setSelectedFile({
+        const fileData = {
           name: data.name,
           content: data.content,
           type: data.type,
           path: data.path
-        });
+        };
+        setSelectedFile(fileData);
         setShowPreview(true);
+        
+        // Also trigger the preview tab if onFileSelect is provided
+        if (onFileSelect) {
+          onFileSelect(fileData);
+        }
       } else {
         const errorData = await response.json();
         console.error('Preview error:', errorData);
@@ -108,13 +116,36 @@ const FileExplorer = () => {
       case 'tsx':
         return 'text-blue-400';
       case 'html':
+      case 'htm':
         return 'text-orange-400';
       case 'css':
+      case 'scss':
+      case 'sass':
         return 'text-green-400';
+      case 'py':
+        return 'text-blue-500';
+      case 'java':
+        return 'text-red-400';
+      case 'cpp':
+      case 'c':
+        return 'text-blue-600';
       case 'json':
         return 'text-purple-400';
+      case 'xml':
+        return 'text-orange-300';
       case 'md':
+      case 'markdown':
         return 'text-gray-300';
+      case 'txt':
+        return 'text-gray-400';
+      case 'php':
+        return 'text-purple-500';
+      case 'rb':
+        return 'text-red-500';
+      case 'go':
+        return 'text-cyan-400';
+      case 'rs':
+        return 'text-orange-600';
       default:
         return 'text-gray-400';
     }
@@ -152,10 +183,13 @@ const FileExplorer = () => {
                 {searchTerm ? 'No files match your search' : 'No files available'}
               </div>
             ) : (
-              filteredFiles.map((file) => (
+              filteredFiles.map((file) => {
+                console.log('📄 Rendering file:', file.name);
+                return (
                 <div
                   key={file.name}
                   className="flex items-center py-2 px-2 hover:bg-gray-700 cursor-pointer group rounded-md"
+                  onClick={() => previewFile(file.name)}
                 >
                   <File className={`w-4 h-4 mr-2 ${getFileIconColor(file.name)}`} />
                   <span className="text-sm truncate flex-1">{file.name}</span>
@@ -182,7 +216,8 @@ const FileExplorer = () => {
                     </button>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

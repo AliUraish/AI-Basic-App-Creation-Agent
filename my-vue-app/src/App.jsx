@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
-import { FileText, MessageSquare, Settings, Menu, X } from 'lucide-react';
+import { FileText, MessageSquare, Settings, Menu, X, Monitor } from 'lucide-react';
 import FileExplorer from './components/FileExplorer';
 import ChatInterface from './components/ChatInterface';
 import ChatHistory from './components/ChatHistory';
+import Preview from './components/Preview';
 
 function App() {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  // Handle file selection from FileExplorer
+  const handleFileSelect = (file) => {
+    setSelectedFile(file);
+    setPreviewOpen(true);
+  };
+
+  // Handle file preview close
+  const handlePreviewClose = () => {
+    setPreviewOpen(false);
+    // Don't clear selectedFile so user can toggle preview back
+  };
 
   return (
     <div className="h-screen bg-gray-900 text-white flex overflow-hidden">
@@ -25,7 +40,7 @@ function App() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <FileExplorer />
+          <FileExplorer onFileSelect={handleFileSelect} />
         </div>
       </div>
 
@@ -45,6 +60,19 @@ function App() {
             <h1 className="text-xl font-bold">AI Assistant</h1>
           </div>
           <div className="flex items-center gap-4">
+            {/* Preview Tab Button */}
+            <button
+              onClick={() => setPreviewOpen(!previewOpen)}
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors flex items-center gap-2 ${
+                previewOpen 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              <Monitor className="w-4 h-4" />
+              Preview
+            </button>
+            
             {!rightSidebarOpen && (
               <button
                 onClick={() => setRightSidebarOpen(true)}
@@ -57,8 +85,23 @@ function App() {
           </div>
         </div>
 
-        {/* Chat Interface */}
-        <ChatInterface />
+        {/* Main Content - Chat Interface with optional Preview */}
+        <div className="flex-1 flex">
+          {/* Chat Interface */}
+          <div className={`${previewOpen ? 'w-1/2' : 'w-full'} transition-all duration-300 flex flex-col`}>
+            <ChatInterface />
+          </div>
+
+          {/* Preview Panel */}
+          {previewOpen && (
+            <div className="w-1/2 border-l border-gray-700 flex flex-col">
+              <Preview 
+                selectedFile={selectedFile} 
+                onClose={handlePreviewClose} 
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right Sidebar - Chat History */}
