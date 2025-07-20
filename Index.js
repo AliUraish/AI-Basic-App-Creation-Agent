@@ -316,6 +316,9 @@ app.use(cors({
 app.use(express.json());
 
 // API Routes (MUST come before static file serving)
+console.log('📍 Setting up API routes...');
+
+console.log('📍 Setting up chat route...');
 app.post('/api/chat', async (req, res) => {
     try {
         const { message, model = 'gpt-4' } = req.body;
@@ -430,6 +433,7 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
+console.log('📍 Setting up files list route...');
 // Get virtual file system
 app.get('/api/files', (req, res) => {
     try {
@@ -448,6 +452,7 @@ app.get('/api/files', (req, res) => {
     }
 });
 
+console.log('📍 Setting up delete route...');
 // Delete file from virtual file system - using specific route handler
 app.delete('/api/files/delete', (req, res) => {
     try {
@@ -469,10 +474,11 @@ app.delete('/api/files/delete', (req, res) => {
     }
 });
 
-// Get file content for preview
-app.get('/api/files/:fileName/content', (req, res) => {
+console.log('📍 Setting up file content route...');
+// Get file content for preview - using query parameter instead of path parameter
+app.get('/api/file-content', (req, res) => {
     try {
-        const fileName = decodeURIComponent(req.params.fileName);
+        const fileName = decodeURIComponent(req.query.name || '');
         console.log(`🔍 Requesting file content for: "${fileName}"`);
         console.log(`📁 Available files:`, Array.from(virtualFileSystem.files.keys()));
         
@@ -501,6 +507,7 @@ app.get('/api/files/:fileName/content', (req, res) => {
     }
 });
 
+console.log('📍 Setting up health route...');
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ 
@@ -511,13 +518,15 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+console.log('📍 Setting up static files...');
 // Serve static files from my-vue-app frontend (AFTER API routes)
 app.use(express.static(path.join(__dirname, 'my-vue-app/dist')));
 
-// Catch-all handler for SPA routing
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'my-vue-app/dist/index.html'));
-});
+// console.log('📍 Setting up catch-all route...');
+// Catch-all handler for SPA routing (MUST be last) - temporarily disabled
+// app.get('/*', (req, res) => {
+//     res.sendFile(path.join(__dirname, 'my-vue-app/dist/index.html'));
+// });
 
 // Start server
 app.listen(PORT, () => {

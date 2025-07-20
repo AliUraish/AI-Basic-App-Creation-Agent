@@ -41,30 +41,42 @@ const FileExplorer = ({ onFileSelect }) => {
   const previewFile = async (fileName) => {
     try {
       console.log(`🔍 Previewing file: ${fileName}`);
-      const response = await fetch(`/api/files/${encodeURIComponent(fileName)}/content`);
+      const url = `/api/file-content?name=${encodeURIComponent(fileName)}`;
+      console.log(`📡 Request URL: ${url}`);
+      const response = await fetch(url);
+      
+      console.log(`📊 Response status: ${response.status}`);
+      console.log(`📋 Response headers:`, response.headers.get('content-type'));
       
       if (response.ok) {
-        const data = await response.json();
-        const fileData = {
-          name: data.name,
-          content: data.content,
-          type: data.type,
-          path: data.path
-        };
-        setSelectedFile(fileData);
-        setShowPreview(true);
-        
-        // Also trigger the preview tab if onFileSelect is provided
-        if (onFileSelect) {
-          onFileSelect(fileData);
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          const fileData = {
+            name: data.name,
+            content: data.content,
+            type: data.type,
+            path: data.path
+          };
+          setSelectedFile(fileData);
+          setShowPreview(true);
+          
+          // Also trigger the preview tab if onFileSelect is provided
+          if (onFileSelect) {
+            onFileSelect(fileData);
+          }
+        } else {
+          const responseText = await response.text();
+          console.error('❌ Expected JSON but got:', responseText.substring(0, 200));
+          alert(`Could not load file content: Expected JSON response but got HTML/text`);
         }
       } else {
-        const errorData = await response.json();
-        console.error('Preview error:', errorData);
-        alert(`Could not load file content: ${errorData.error}`);
+        const responseText = await response.text();
+        console.error('❌ HTTP Error:', response.status, responseText);
+        alert(`Could not load file content: HTTP error! status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error previewing file:', error);
+      console.error('❌ Network/Parse Error:', error);
       alert(`Could not load file content: ${error.message}`);
     }
   };
